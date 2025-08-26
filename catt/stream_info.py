@@ -24,7 +24,9 @@ MAX_50FPS = "[fps <=? 50]"
 TWITCH_NO_60FPS = "[format_id != 1080p60__source_][format_id != 720p60]"
 MIXCLOUD_NO_DASH_HLS = "[format_id != dash-a1-x3][format_id !*= hls-6]"
 BANDCAMP_NO_AIFF_ALAC = "[format_id != aiff-lossless][format_id != alac]"
-AUDIO_FORMAT = BEST_ONLY_AUDIO + MIXCLOUD_NO_DASH_HLS + BANDCAMP_NO_AIFF_ALAC + BEST_FALLBACK
+AUDIO_FORMAT = (
+    BEST_ONLY_AUDIO + MIXCLOUD_NO_DASH_HLS + BANDCAMP_NO_AIFF_ALAC + BEST_FALLBACK
+)
 ULTRA_FORMAT = BEST_MAX_4K + BANDCAMP_NO_AIFF_ALAC
 STANDARD_FORMAT = BEST_MAX_2K + MAX_50FPS + TWITCH_NO_60FPS + BANDCAMP_NO_AIFF_ALAC
 
@@ -32,20 +34,37 @@ DEFAULT_YTDL_OPTS = {"quiet": True, "no_warnings": True}
 
 
 class StreamInfo:
-    def __init__(self, video_url, cast_info=None, ytdl_options=None, throw_ytdl_dl_errs=False):
+    def __init__(
+        self,
+        video_url,
+        cast_info=None,
+        ytdl_options=None,
+        throw_ytdl_dl_errs=False,
+        stream_type=None,
+    ):
         self._throw_ytdl_dl_errs = throw_ytdl_dl_errs
+        self.stream_type = stream_type
         self.local_ip = get_local_ip(cast_info.host) if cast_info else None
         self.port = random.randrange(45000, 47000) if cast_info else None
 
         if "://" in video_url:
-            self._ydl = yt_dlp.YoutubeDL(dict(ytdl_options) if ytdl_options else DEFAULT_YTDL_OPTS)
+            self._ydl = yt_dlp.YoutubeDL(
+                dict(ytdl_options) if ytdl_options else DEFAULT_YTDL_OPTS
+            )
             self._preinfo = self._get_stream_preinfo(video_url)
             # Some playlist urls needs to be re-processed (such as youtube channel urls).
             if self._preinfo.get("ie_key"):
                 self._preinfo = self._get_stream_preinfo(self._preinfo["url"])
             self.is_local_file = False
+            if self.stream_type is None and "duration" in self._preinfo:
+                if self._preinfo["duration"] is None:
+                    self.stream_type = "LIVE"
+                else:
+                    self.stream_type = "BUFFERED"
 
-            model = (cast_info.manufacturer, cast_info.model_name) if cast_info else None
+            model = (
+                (cast_info.manufacturer, cast_info.model_name) if cast_info else None
+            )
             cast_type = cast_info.cast_type if cast_info else None
             if "format" in self._ydl.params:
                 # We pop the "format" item, as it will make get_stream_info fail,
@@ -65,7 +84,11 @@ class StreamInfo:
                 # so we set the "noplaylist" option and then fetch preinfo again.
                 self._ydl.params.update({"noplaylist": True})
                 vpreinfo = self._get_stream_preinfo(video_url)
-                self._info = self._get_stream_info(vpreinfo) if "entries" not in vpreinfo else None
+                self._info = (
+                    self._get_stream_info(vpreinfo)
+                    if "entries" not in vpreinfo
+                    else None
+                )
             else:
                 self._info = self._get_stream_info(self._preinfo)
         else:
@@ -90,7 +113,9 @@ class StreamInfo:
 
     @property
     def extractor(self):
-        return self._preinfo["extractor"].split(":")[0] if not self.is_local_file else None
+        return (
+            self._preinfo["extractor"].split(":")[0] if not self.is_local_file else None
+        )
 
     @property
     def video_title(self):
@@ -114,11 +139,19 @@ class StreamInfo:
 
     @property
     def video_id(self):
-        return self._info["id"] if self.is_remote_file or self.is_playlist_with_active_entry else None
+        return (
+            self._info["id"]
+            if self.is_remote_file or self.is_playlist_with_active_entry
+            else None
+        )
 
     @property
     def video_thumbnail(self):
-        return self._info.get("thumbnail") if self.is_remote_file or self.is_playlist_with_active_entry else None
+        return (
+            self._info.get("thumbnail")
+            if self.is_remote_file or self.is_playlist_with_active_entry
+            else None
+        )
 
     @property
     def guessed_content_type(self):
